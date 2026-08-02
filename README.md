@@ -17,7 +17,7 @@ vanilla-JS frontend — no React, no bundler, no Electron.
 | macOS | `.dmg`, `.app` (arm64 + x64) | frameless title bar, unsigned — right-click → Open on first launch |
 | Linux | `.deb`, `.rpm`, `.AppImage` (x86_64) | built on Ubuntu 22.04 for wider glibc compatibility |
 | Windows | `.msi`, `.exe` (x86_64) | needs WebView2, preinstalled on Windows 11 |
-| Android | `.apk` (universal) | downloads go to app-private storage; no file-manager integration |
+| Android | `.apk` (universal, ~35 MB) | signed in CI; downloads go to app-private storage, no file-manager integration |
 
 Every artifact is produced by GitHub Actions on a native runner — Tauri cannot be
 cross-compiled, since each platform links against its own system webview.
@@ -101,8 +101,11 @@ GitHub Release:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Android ships a debug-signed APK out of the box, which installs directly on a
-device. To also get a release-signed APK, add four repository secrets:
+The Android APK is always signed, because Android will not install an unsigned
+one. Without secrets it is signed with a throwaway CI key and published as
+`…_universal-unofficial.apk` — installable for testing, but not upgradeable
+from a Play Store build. To sign with your own key instead, add four repository
+secrets and the asset becomes `…_universal-release.apk`:
 
 | Secret | Value |
 | --- | --- |
@@ -111,8 +114,8 @@ device. To also get a release-signed APK, add four repository secrets:
 | `ANDROID_KEY_ALIAS` | key alias |
 | `ANDROID_KEY_PASSWORD` | key password |
 
-The signing step is skipped when `ANDROID_KEYSTORE` is unset, so the workflow
-stays green without them.
+No debug APK is published: it bundles unstripped Rust symbols for all four ABIs
+and weighs roughly 940 MB, against ~35 MB for the release build.
 
 ## Layout
 

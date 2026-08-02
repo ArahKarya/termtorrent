@@ -127,41 +127,60 @@ jobs:
       - name: Scaffold the Android project
         run: npx tauri android init
 
-      - name: Build debug APK
-        run: npx tauri android build --debug --apk
-
-      - name: Build unsigned release APK
+      # Only the release APK is built. A debug build carries unstripped Rust
+      # symbols for all four ABIs and lands around 940 MB — too large to be a
+      # useful download.
+      - name: Build release APK
         run: npx tauri android build --apk
 
-      # Signing happens here rather than through Gradle so the generated
-      # project needs no patching. Skipped entirely when no keystore is set.
-      - name: Sign release APK
-        if: env.ANDROID_KEYSTORE != ''
+      # Android refuses to install an unsigned APK, so this always signs:
+      # with the real keystore when the secrets exist, otherwise with a
+      # throwaway key so the artifact is still installable for testing.
+      # Signing here rather than via Gradle keeps the generated project unpatched.
+      - name: Sign APK
         run: |
           set -euo pipefail
           UNSIGNED="$(find src-tauri/gen/android -name '*release-unsigned.apk' | head -1)"
           if [ -z "$UNSIGNED" ]; then
-            echo "no unsigned release APK found" >&2
+            echo "no release APK produced" >&2
             exit 1
           fi
-          APK_DIR="$(dirname "$UNSIGNED")"
           BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          KS="$RUNNER_TEMP/ks.jks"
+          VERSION="${GITHUB_REF_NAME#v}"
 
-          echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          if [ -n "${ANDROID_KEYSTORE:-}" ]; then
+            echo "$ANDROID_KEYSTORE" | base64 -d > "$KS"
+            KS_PASS="$ANDROID_KEYSTORE_PASSWORD"
+            KEY_ALIAS="$ANDROID_KEY_ALIAS"
+            KEY_PASS="$ANDROID_KEY_PASSWORD"
+            SUFFIX="release"
+          else
+            echo "::notice::No ANDROID_KEYSTORE secret — signing with a throwaway CI key."
+            KS_PASS="termtorrent"
+            KEY_ALIAS="ci"
+            KEY_PASS="termtorrent"
+            SUFFIX="unofficial"
+            keytool -genkeypair -noprompt \
+              -keystore "$KS" -alias "$KEY_ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KEY_PASS" \
+              -dname "CN=termtorrent CI, O=termtorrent, C=ID"
+          fi
+
+          mkdir -p artifacts
           "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
           "$BUILD_TOOLS/apksigner" sign \
-            --ks "$RUNNER_TEMP/keystore.jks" \
-            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
-            --ks-key-alias "$ANDROID_KEY_ALIAS" \
-            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
-            --out "$APK_DIR/termtorrent-release-signed.apk" \
+            --ks "$KS" \
+            --ks-pass "pass:$KS_PASS" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASS" \
+            --out "artifacts/termtorrent_${VERSION}_universal-${SUFFIX}.apk" \
             "$RUNNER_TEMP/aligned.apk"
-          rm -f "$RUNNER_TEMP/keystore.jks" "$RUNNER_TEMP/aligned.apk"
 
-      - name: Collect APKs
-        run: |
-          mkdir -p artifacts
-          find src-tauri/gen/android -name "*.apk" -path "*outputs*" -exec cp {} artifacts/ \;
+          rm -f "$KS" "$RUNNER_TEMP/aligned.apk"
+          "$BUILD_TOOLS/apksigner" verify --print-certs \
+            "artifacts/termtorrent_${VERSION}_universal-${SUFFIX}.apk"
           ls -la artifacts
 
       - uses: actions/upload-artifact@v4
