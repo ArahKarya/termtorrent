@@ -4627,7 +4627,6 @@ name = "termtorrent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "dirs",
  "librqbit",
  "parking_lot",
  "serde",

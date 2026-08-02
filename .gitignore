@@ -1,7 +1,7 @@
 node_modules/
 dist/
 src-tauri/target/
-src-tauri/gen/schemas/
+src-tauri/gen/
 app-icon.png
 .DS_Store
 *.log

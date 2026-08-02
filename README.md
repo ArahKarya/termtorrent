@@ -10,6 +10,18 @@ vanilla-JS frontend — no React, no bundler, no Electron.
     ▼ 2.9 MiB/s  ▲ 0 B/s  peers 25/668  eta 1m14s  up 0 B  3 files
 ```
 
+## Platforms
+
+| Platform | Artifacts | Notes |
+| --- | --- | --- |
+| macOS | `.dmg`, `.app` (arm64 + x64) | frameless title bar, unsigned — right-click → Open on first launch |
+| Linux | `.deb`, `.rpm`, `.AppImage` (x86_64) | built on Ubuntu 22.04 for wider glibc compatibility |
+| Windows | `.msi`, `.exe` (x86_64) | needs WebView2, preinstalled on Windows 11 |
+| Android | `.apk` (universal) | downloads go to app-private storage; no file-manager integration |
+
+Every artifact is produced by GitHub Actions on a native runner — Tauri cannot be
+cross-compiled, since each platform links against its own system webview.
+
 ## Why it is small
 
 - The frontend is 4 plain ES modules + one stylesheet, served straight from the
@@ -76,7 +88,31 @@ npm run build    # release bundle (.app + .dmg on macOS)
 npm run icon     # regenerate icons from scripts/make-icon.mjs
 ```
 
-Requires Rust 1.82+ and Node 18+.
+Requires Rust 1.82+ and Node 18+. Linux additionally needs `libwebkit2gtk-4.1-dev`
+and `libxdo-dev`; Windows needs the MSVC build tools; Android needs a JDK, the
+Android SDK, and the NDK with `NDK_HOME` set.
+
+### Releasing
+
+Push a `v*` tag and the `release` workflow builds every platform and publishes a
+GitHub Release:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Android ships a debug-signed APK out of the box, which installs directly on a
+device. To also get a release-signed APK, add four repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE` | base64 of your `.jks` (`base64 -i keystore.jks`) |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore password |
+| `ANDROID_KEY_ALIAS` | key alias |
+| `ANDROID_KEY_PASSWORD` | key password |
+
+The signing step is skipped when `ANDROID_KEYSTORE` is unset, so the workflow
+stays green without them.
 
 ## Layout
 

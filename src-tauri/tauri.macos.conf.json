@@ -1,0 +1,13 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "",
+        "titleBarStyle": "Overlay"
+      }
+    ]
+  },
+  "bundle": {
+    "targets": ["app", "dmg"]
+  }
+}

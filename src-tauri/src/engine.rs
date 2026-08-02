@@ -36,12 +36,15 @@ pub struct Engine {
 impl Engine {
     /// Boot the torrent session. `config_dir` holds `config.json` and the
     /// librqbit session state used to resume torrents across restarts.
-    pub async fn start(config_dir: PathBuf) -> Result<Arc<Self>> {
+    /// `default_download_dir` is resolved by the caller because the right
+    /// answer differs per platform (app-private storage on Android).
+    pub async fn start(config_dir: PathBuf, default_download_dir: PathBuf) -> Result<Arc<Self>> {
         std::fs::create_dir_all(&config_dir)
             .with_context(|| format!("cannot create config dir {}", config_dir.display()))?;
 
         let config_path = config_dir.join("config.json");
-        let config = load_config(&config_path).unwrap_or_else(|| default_config());
+        let config =
+            load_config(&config_path).unwrap_or_else(|| default_config(&default_download_dir));
         ensure_dir(&config.download_dir)?;
 
         let opts = SessionOptions {
@@ -98,11 +101,14 @@ impl Engine {
         let uri = uri.trim();
         anyhow::ensure!(!uri.is_empty(), "empty torrent source");
 
-        let add = if uri.starts_with("magnet:") || uri.starts_with("http://") || uri.starts_with("https://") {
+        let add = if uri.starts_with("magnet:")
+            || uri.starts_with("http://")
+            || uri.starts_with("https://")
+        {
             AddTorrent::from_url(uri.to_string())
         } else {
-            let bytes = std::fs::read(uri)
-                .with_context(|| format!("cannot read torrent file {uri}"))?;
+            let bytes =
+                std::fs::read(uri).with_context(|| format!("cannot read torrent file {uri}"))?;
             AddTorrent::from_bytes(bytes)
         };
 
@@ -135,7 +141,9 @@ impl Engine {
 
         Ok(AddResult {
             id,
-            name: handle.name().unwrap_or_else(|| short_hash(&handle.info_hash().as_string())),
+            name: handle
+                .name()
+                .unwrap_or_else(|| short_hash(&handle.info_hash().as_string())),
             already_present,
         })
     }
@@ -236,7 +244,12 @@ impl Engine {
                 let stats = handle.stats();
                 let live = stats.live.as_ref();
                 let (down_bps, up_bps) = live
-                    .map(|l| (mib_to_bps(l.download_speed.mbps), mib_to_bps(l.upload_speed.mbps)))
+                    .map(|l| {
+                        (
+                            mib_to_bps(l.download_speed.mbps),
+                            mib_to_bps(l.upload_speed.mbps),
+                        )
+                    })
                     .unwrap_or((0, 0));
                 let peers = live.map(|l| &l.snapshot.peer_stats);
 
@@ -246,9 +259,7 @@ impl Engine {
                     (stats.progress_bytes as f64 / stats.total_bytes as f64).clamp(0.0, 1.0)
                 };
 
-                let file_count = handle
-                    .with_metadata(|m| m.file_infos.len())
-                    .unwrap_or(0);
+                let file_count = handle.with_metadata(|m| m.file_infos.len()).unwrap_or(0);
 
                 TorrentView {
                     id,
@@ -268,7 +279,10 @@ impl Engine {
                     peers_queued: peers.map(|p| p.queued).unwrap_or(0),
                     peers_seen: peers.map(|p| p.seen).unwrap_or(0),
                     eta_secs: eta_secs(stats.total_bytes, stats.progress_bytes, down_bps),
-                    output_dir: dirs.get(&id).cloned().unwrap_or_else(|| default_dir.clone()),
+                    output_dir: dirs
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or_else(|| default_dir.clone()),
                     file_count,
                 }
             })
@@ -336,20 +350,13 @@ fn ensure_dir(dir: &str) -> Result<()> {
     std::fs::create_dir_all(dir).with_context(|| format!("cannot create download dir {dir}"))
 }
 
-pub fn default_config() -> Config {
+pub fn default_config(download_dir: &Path) -> Config {
     Config {
-        download_dir: default_download_dir().to_string_lossy().into_owned(),
+        download_dir: download_dir.to_string_lossy().into_owned(),
         max_download_bps: None,
         max_upload_bps: None,
         theme: "phosphor".into(),
     }
-}
-
-fn default_download_dir() -> PathBuf {
-    dirs::download_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("termtorrent")
 }
 
 fn load_config(path: &Path) -> Option<Config> {

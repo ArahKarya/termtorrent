@@ -45,11 +45,12 @@ pub fn run() {
                 .path()
                 .app_config_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let download_dir = default_download_dir(app.handle());
 
             // Boot the session off the UI thread so the window paints immediately,
             // then start the refresh loop that feeds the terminal view.
             tauri::async_runtime::spawn(async move {
-                match Engine::start(config_dir).await {
+                match Engine::start(config_dir, download_dir).await {
                     Ok(engine) => {
                         *handle.state::<EngineState>().write() = Some(Arc::clone(&engine));
                         let _ = handle.emit("termtorrent://ready", ());
@@ -74,6 +75,30 @@ pub fn run() {
                 }
             }
         });
+}
+
+/// Where downloads land the first time the app runs.
+///
+/// Android has no user-visible Downloads folder an app may write to without
+/// runtime permissions, so torrents go to app-private storage there. Desktop
+/// platforms use the real Downloads folder.
+fn default_download_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    #[cfg(target_os = "android")]
+    {
+        app.path()
+            .app_data_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .join("downloads")
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        app.path()
+            .download_dir()
+            .or_else(|_| app.path().home_dir())
+            .unwrap_or_else(|_| std::path::PathBuf::from("."))
+            .join("termtorrent")
+    }
 }
 
 /// Push a fresh snapshot to the frontend on a fixed cadence.

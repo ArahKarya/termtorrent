@@ -96,10 +96,15 @@ html[data-crt="off"] .crt {
   align-items: center;
   gap: 12px;
   height: 38px;
-  padding: 0 14px 0 84px; /* leave room for the macOS traffic lights */
+  padding: 0 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   flex: none;
+}
+
+/* Only macOS overlays its window buttons on the content. */
+html[data-os="macos"] .titlebar {
+  padding-left: 84px;
 }
 
 .dots {
@@ -472,6 +477,63 @@ html[data-crt="off"] .crt {
   flex: none;
   color: var(--fg-dim);
   font-size: 11px;
+}
+
+/* ── narrow screens: phones, and desktop windows shrunk down ─────────────── */
+
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+  }
+
+  .titlebar {
+    height: 34px;
+  }
+
+  .title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .statusbar {
+    gap: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .statusbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hint {
+    display: none;
+  }
+
+  /* Roomier hit targets for touch. */
+  .pal-row {
+    height: 34px;
+  }
+
+  .pal-name {
+    min-width: 96px;
+  }
+
+  .pal-hint {
+    display: none;
+  }
+
+  .row {
+    padding: 8px;
+  }
+
+  .console {
+    max-height: 20vh;
+  }
+
+  .empty pre {
+    font-size: 10px;
+  }
 }
 
 body.dragover {

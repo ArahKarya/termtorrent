@@ -39,6 +39,20 @@ function parseRate(token) {
 
 const rateLabel = (bps) => (bps ? `${fmtSpeed(bps)}` : "unlimited");
 
+/**
+ * File-manager integration exists on desktop only — Android has no folder to
+ * hand off to. Fall back to printing the path so the command still says
+ * something useful instead of throwing an opaque plugin error.
+ */
+async function tryOpen(action, path, ctx, verb) {
+  try {
+    await action(path);
+    ctx.log(`${verb} ${path}`, "ok");
+  } catch {
+    ctx.log(`no file manager available here — path is ${path}`, "warn");
+  }
+}
+
 export const COMMANDS = [
   {
     name: "help",
@@ -187,8 +201,7 @@ export const COMMANDS = [
     run: async (ctx, [target]) => {
       const id = resolveId(ctx, target);
       const dir = await api.outputDir(id);
-      await revealInDir(dir);
-      ctx.log(`revealed ${dir}`, "ok");
+      await tryOpen(revealInDir, dir, ctx, "revealed");
     },
   },
   {
@@ -266,8 +279,7 @@ export const COMMANDS = [
     usage: "/openfolder",
     about: "open the download folder",
     run: async (ctx) => {
-      await openPath(ctx.state.config.downloadDir);
-      ctx.log(`opened ${ctx.state.config.downloadDir}`, "ok");
+      await tryOpen(openPath, ctx.state.config.downloadDir, ctx, "opened");
     },
   },
   {

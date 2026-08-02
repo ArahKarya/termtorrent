@@ -14,6 +14,22 @@ import {
 
 const input = document.getElementById("input");
 
+/**
+ * Tag the document with the host OS so the stylesheet can adapt — chiefly the
+ * left inset macOS needs for its traffic lights, which no other platform has.
+ * Sniffing the UA avoids pulling in the os plugin for one string.
+ */
+function detectOs() {
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "macos";
+  return "linux";
+}
+
+const OS = detectOs();
+document.documentElement.dataset.os = OS;
+
 const state = {
   snapshot: { torrents: [], session: {} },
   config: { downloadDir: "", maxDownloadBps: null, maxUploadBps: null, theme: "phosphor" },
