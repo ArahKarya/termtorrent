@@ -17,7 +17,10 @@ tauri-build = { version = "2.6.3", features = [] }
 tauri = { version = "2.11.5", features = [] }
 tauri-plugin-dialog = "2.7.2"
 tauri-plugin-opener = "2.5.4"
-librqbit = { version = "8.1.1", default-features = false, features = ["default-tls"] }
+# rustls rather than native TLS: openssl-sys cannot cross-compile to Android
+# without a target sysroot, and avoiding it also frees the Linux packages from
+# a system libssl dependency.
+librqbit = { version = "8.1.1", default-features = false, features = ["rust-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
