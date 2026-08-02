@@ -17,15 +17,19 @@
 
 termtorrent is a BitTorrent client that behaves like a terminal: you type, it answers.
 The download engine is **librqbit** compiled into the binary, the shell is **Tauri 2**
-using the webview the OS already ships, and the entire frontend is **4 plain ES modules
+using the webview the OS already ships, and the entire frontend is **6 plain ES modules
 plus one stylesheet** — 41 KB, served straight from the asset embed with no build step.
 The result is a **3 MB installer** where an Electron equivalent costs 80–150 MB.
 
-```
-[0] Big Buck Bunny                                          DOWNLOADING
-    ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  18.2%  48.0 MiB / 264 MiB
-    ▼ 2.9 MiB/s  ▲ 0 B/s  peers 25/668  eta 1m14s  up 0 B  3 files
-```
+![termtorrent seeding two torrents while downloading a third](docs/screenshots/01-main.png)
+
+Press `/` for the command palette — filter as you type, `↑`/`↓` to move, `Enter` to run:
+
+![slash command palette](docs/screenshots/02-palette.png)
+
+Four terminal themes ship in the box — `phosphor` (default), `amber`, `ice`, `mono`:
+
+![amber theme](docs/screenshots/03-amber.png)
 
 ## ✨ Why termtorrent
 
@@ -202,6 +206,18 @@ weighs roughly **940 MB**, against ~35 MB for the release build.
 Settings live in the OS app-config directory — on macOS
 `~/Library/Application Support/dev.arahkarya.termtorrent/config.json` — alongside
 librqbit's `session/` folder used for resume data.
+
+`TERMTORRENT_CONFIG_DIR` relocates both. That gives you a self-contained profile,
+and lets a throwaway instance run beside your everyday session without touching
+its torrents:
+
+```bash
+TERMTORRENT_CONFIG_DIR=/tmp/tt-demo termtorrent
+```
+
+The listener spans ports 4240–4259, so the second instance starts cleanly next to
+the first. The screenshots above were captured exactly this way, using Blender's
+CC-BY open movies.
 
 ## ✅ Status
 

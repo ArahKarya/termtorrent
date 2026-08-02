@@ -41,10 +41,7 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
-            let config_dir = app
-                .path()
-                .app_config_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let config_dir = config_dir(app.handle());
             let download_dir = default_download_dir(app.handle());
 
             // Boot the session off the UI thread so the window paints immediately,
@@ -75,6 +72,21 @@ pub fn run() {
                 }
             }
         });
+}
+
+/// Where settings and resume data live.
+///
+/// `TERMTORRENT_CONFIG_DIR` overrides the OS location, which gives you a
+/// self-contained profile: run a second instance for testing or demos without
+/// touching the torrents in your everyday session. The port range already
+/// spans 4240-4259, so the instances do not fight over a listener.
+fn config_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
+    if let Some(dir) = std::env::var_os("TERMTORRENT_CONFIG_DIR") {
+        return std::path::PathBuf::from(dir);
+    }
+    app.path()
+        .app_config_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
 }
 
 /// Where downloads land the first time the app runs.
