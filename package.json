@@ -1,0 +1,16 @@
+{
+  "name": "termtorrent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight torrent downloader with a terminal-styled UI",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icon": "node scripts/make-icon.mjs && tauri icon app-icon.png",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

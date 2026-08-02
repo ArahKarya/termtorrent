@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="phosphor">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>termtorrent</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="crt" aria-hidden="true"></div>
+
+    <header class="titlebar" data-tauri-drag-region>
+      <span class="dots" data-tauri-drag-region>
+        <i class="dot red"></i><i class="dot amber"></i><i class="dot green"></i>
+      </span>
+      <span class="title" data-tauri-drag-region>termtorrent — bittorrent session</span>
+      <span class="badge" id="conn-badge">booting…</span>
+    </header>
+
+    <section class="statusbar">
+      <span class="stat"><b>SESS</b> <span id="s-count">0</span></span>
+      <span class="stat down"><b>▼</b> <span id="s-down">0 B/s</span></span>
+      <span class="stat up"><b>▲</b> <span id="s-up">0 B/s</span></span>
+      <span class="stat"><b>peers</b> <span id="s-peers">0</span></span>
+      <span class="stat"><b>port</b> <span id="s-port">—</span></span>
+      <span class="stat"><b>dht</b> <span id="s-dht">—</span></span>
+      <span class="spacer"></span>
+      <span class="stat dim" id="s-dir">~</span>
+    </section>
+
+    <main class="screen" id="screen">
+      <ul class="torrents" id="torrents"></ul>
+      <div class="empty" id="empty">
+        <pre>
+  ╔═══════════════════════════════════════════════╗
+  ║  no torrents in session                       ║
+  ║                                               ║
+  ║  paste a magnet link and press enter, or      ║
+  ║  press /       to browse commands             ║
+  ║  type  /open   to pick a .torrent file        ║
+  ╚═══════════════════════════════════════════════╝
+        </pre>
+      </div>
+    </main>
+
+    <section class="console" id="console"></section>
+
+    <footer class="prompt">
+      <div class="palette hidden" id="palette"></div>
+      <span class="sigil">$</span>
+      <input
+        id="input"
+        type="text"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="magnet:?xt=… or / for commands"
+      />
+      <span class="hint">/ commands · ↑↓ history</span>
+    </footer>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

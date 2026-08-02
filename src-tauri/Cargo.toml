@@ -1,0 +1,35 @@
+[package]
+name = "termtorrent"
+version = "0.1.0"
+description = "Lightweight torrent downloader with a terminal-styled UI"
+authors = ["Yayang Setya Nugroho"]
+edition = "2021"
+rust-version = "1.82"
+
+[lib]
+name = "termtorrent_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = [] }
+tauri-plugin-dialog = "2.7.2"
+tauri-plugin-opener = "2.5.4"
+librqbit = { version = "8.1.1", default-features = false, features = ["default-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+anyhow = "1"
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dirs = "6"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

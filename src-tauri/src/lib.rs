@@ -1,0 +1,88 @@
+//! termtorrent — a lightweight torrent client with a terminal-styled UI.
+
+mod commands;
+mod engine;
+mod types;
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use tauri::{Emitter, Manager};
+
+use crate::commands::EngineState;
+use crate::engine::{Engine, TICK_EVENT, TICK_MS};
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "termtorrent=info,librqbit=warn".into()),
+        )
+        .init();
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .manage(EngineState::default())
+        .invoke_handler(tauri::generate_handler![
+            commands::get_config,
+            commands::set_config,
+            commands::snapshot,
+            commands::add_torrent,
+            commands::add_torrent_bytes,
+            commands::pause_torrent,
+            commands::resume_torrent,
+            commands::remove_torrent,
+            commands::pause_all,
+            commands::resume_all,
+            commands::torrent_files,
+            commands::torrent_output_dir,
+        ])
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let config_dir = app
+                .path()
+                .app_config_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+
+            // Boot the session off the UI thread so the window paints immediately,
+            // then start the refresh loop that feeds the terminal view.
+            tauri::async_runtime::spawn(async move {
+                match Engine::start(config_dir).await {
+                    Ok(engine) => {
+                        *handle.state::<EngineState>().write() = Some(Arc::clone(&engine));
+                        let _ = handle.emit("termtorrent://ready", ());
+                        tick_loop(handle, engine).await;
+                    }
+                    Err(e) => {
+                        tracing::error!("failed to start torrent session: {e:#}");
+                        let _ = handle.emit("termtorrent://fatal", format!("{e:#}"));
+                    }
+                }
+            });
+
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building termtorrent")
+        .run(|app, event| {
+            // Let librqbit flush its resume data before the process goes away.
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(engine) = app.state::<EngineState>().read().clone() {
+                    tauri::async_runtime::block_on(engine.stop());
+                }
+            }
+        });
+}
+
+/// Push a fresh snapshot to the frontend on a fixed cadence.
+async fn tick_loop(handle: tauri::AppHandle, engine: Arc<Engine>) {
+    let mut interval = tokio::time::interval(Duration::from_millis(TICK_MS));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+    loop {
+        interval.tick().await;
+        let _ = handle.emit(TICK_EVENT, engine.snapshot());
+    }
+}
