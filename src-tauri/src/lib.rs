@@ -40,6 +40,13 @@ pub fn run() {
             commands::torrent_output_dir,
         ])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.with_webview(|_| unsafe {
+                    disable_webkit_text_touch_bar();
+                });
+            }
+
             let handle = app.handle().clone();
             let config_dir = config_dir(app.handle());
             let download_dir = default_download_dir(app.handle());
@@ -121,5 +128,39 @@ async fn tick_loop(handle: tauri::AppHandle, engine: Arc<Engine>) {
     loop {
         interval.tick().await;
         let _ = handle.emit(TICK_EVENT, engine.snapshot());
+    }
+}
+
+/// Work around a macOS 27.x WebKit/AppKit crash where `WKTextTouchBarItemController`
+/// throws `NSInvalidArgumentException` or dereferences null inside `itemForIdentifier:`
+/// when an `<input>` receives focus.
+#[cfg(target_os = "macos")]
+unsafe fn disable_webkit_text_touch_bar() {
+    use std::ffi::{c_char, c_void};
+
+    #[link(name = "objc")]
+    unsafe extern "C" {
+        fn objc_getClass(name: *const c_char) -> *mut c_void;
+        fn sel_registerName(name: *const c_char) -> *mut c_void;
+        fn class_replaceMethod(
+            cls: *mut c_void,
+            name: *mut c_void,
+            imp: *const c_void,
+            types: *const c_char,
+        ) -> *mut c_void;
+    }
+
+    unsafe extern "C" fn nil_item(
+        _this: *mut c_void,
+        _cmd: *mut c_void,
+        _identifier: *mut c_void,
+    ) -> *mut c_void {
+        std::ptr::null_mut()
+    }
+
+    let cls = objc_getClass(c"WKTextTouchBarItemController".as_ptr());
+    if !cls.is_null() {
+        let sel = sel_registerName(c"itemForIdentifier:".as_ptr());
+        class_replaceMethod(cls, sel, nil_item as *const c_void, c"@@:@".as_ptr());
     }
 }
