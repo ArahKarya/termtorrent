@@ -36,7 +36,7 @@ Four terminal themes ship in the box — `phosphor` (default), `amber`, `ice`, `
 | Problem | How termtorrent solves it |
 | --- | --- |
 | Desktop torrent clients ship a whole browser runtime | Uses the **OS webview** (WKWebView / WebView2 / WebKitGTK) — nothing extra bundled |
-| Frontend build chains rot within a year | **No bundler, no npm runtime deps** — 4 ES modules loaded as-is |
+| Frontend build chains rot within a year | **No bundler, no npm runtime deps** — 6 ES modules loaded as-is |
 | GUI clients idle at high CPU | Rows are **keyed and diffed**; the 700 ms refresh touches only changed text nodes |
 | Binaries balloon over releases | Release profile tuned for size: `opt-level="z"`, LTO, 1 codegen unit, `panic="abort"`, symbols stripped |
 | Mouse-driven UIs slow down power users | A **slash-command palette** — `/` opens it, filter as you type, `Enter` runs it |

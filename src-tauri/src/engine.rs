@@ -29,6 +29,7 @@ pub struct Engine {
     session: Arc<Session>,
     config: RwLock<Config>,
     config_path: PathBuf,
+    output_dirs_path: PathBuf,
     /// torrent id -> output directory it was added with.
     output_dirs: RwLock<HashMap<usize, String>>,
 }
@@ -43,8 +44,10 @@ impl Engine {
             .with_context(|| format!("cannot create config dir {}", config_dir.display()))?;
 
         let config_path = config_dir.join("config.json");
-        let config =
+        let output_dirs_path = config_dir.join("output_dirs.json");
+        let mut config =
             load_config(&config_path).unwrap_or_else(|| default_config(&default_download_dir));
+        config.download_dir = expand_tilde(&config.download_dir);
         ensure_dir(&config.download_dir)?;
 
         let opts = SessionOptions {
@@ -67,11 +70,17 @@ impl Engine {
             .await
             .context("failed to start torrent session")?;
 
+        let mut output_dirs = load_output_dirs(&output_dirs_path);
+        let active: std::collections::HashSet<usize> =
+            session.with_torrents(|it| it.map(|(id, _)| id).collect());
+        output_dirs.retain(|id, _| active.contains(id));
+
         Ok(Arc::new(Self {
             session,
             config: RwLock::new(config),
             config_path,
-            output_dirs: RwLock::new(HashMap::new()),
+            output_dirs_path,
+            output_dirs: RwLock::new(output_dirs),
         }))
     }
 
@@ -80,7 +89,8 @@ impl Engine {
     }
 
     /// Replace the config, apply rate limits, and persist to disk.
-    pub fn set_config(&self, next: Config) -> Result<Config> {
+    pub fn set_config(&self, mut next: Config) -> Result<Config> {
+        next.download_dir = expand_tilde(&next.download_dir);
         ensure_dir(&next.download_dir)?;
 
         self.session
@@ -107,8 +117,9 @@ impl Engine {
         {
             AddTorrent::from_url(uri.to_string())
         } else {
+            let path = expand_tilde(uri);
             let bytes =
-                std::fs::read(uri).with_context(|| format!("cannot read torrent file {uri}"))?;
+                std::fs::read(&path).with_context(|| format!("cannot read torrent file {path}"))?;
             AddTorrent::from_bytes(bytes)
         };
 
@@ -137,7 +148,11 @@ impl Engine {
             AddTorrentResponse::ListOnly(_) => anyhow::bail!("unexpected list-only response"),
         };
 
-        self.output_dirs.write().insert(id, output_dir);
+        {
+            let mut dirs = self.output_dirs.write();
+            dirs.insert(id, output_dir);
+            let _ = save_output_dirs(&self.output_dirs_path, &dirs);
+        }
 
         Ok(AddResult {
             id,
@@ -162,7 +177,11 @@ impl Engine {
         self.session
             .delete(TorrentIdOrHash::Id(id), delete_files)
             .await?;
-        self.output_dirs.write().remove(&id);
+        {
+            let mut dirs = self.output_dirs.write();
+            dirs.remove(&id);
+            let _ = save_output_dirs(&self.output_dirs_path, &dirs);
+        }
         Ok(())
     }
 
@@ -356,7 +375,24 @@ pub fn default_config(download_dir: &Path) -> Config {
         max_download_bps: None,
         max_upload_bps: None,
         theme: "phosphor".into(),
+        crt: true,
     }
+}
+
+fn expand_tilde(path: &str) -> String {
+    if path == "~" || path.starts_with("~/") || path.starts_with("~\\") {
+        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+            let rest = path.strip_prefix('~').unwrap_or("");
+            let rest = rest.trim_start_matches(['/', '\\']);
+            let joined = if rest.is_empty() {
+                PathBuf::from(home)
+            } else {
+                PathBuf::from(home).join(rest)
+            };
+            return joined.to_string_lossy().into_owned();
+        }
+    }
+    path.to_string()
 }
 
 fn load_config(path: &Path) -> Option<Config> {
@@ -367,4 +403,90 @@ fn load_config(path: &Path) -> Option<Config> {
 fn save_config(path: &Path, config: &Config) -> Result<()> {
     let raw = serde_json::to_string_pretty(config)?;
     std::fs::write(path, raw).with_context(|| format!("cannot write {}", path.display()))
+}
+
+fn load_output_dirs(path: &Path) -> HashMap<usize, String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+fn save_output_dirs(path: &Path, dirs: &HashMap<usize, String>) -> Result<()> {
+    let raw = serde_json::to_string_pretty(dirs)?;
+    std::fs::write(path, raw).with_context(|| format!("cannot write {}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eta_secs_handles_edge_cases() {
+        assert_eq!(eta_secs(1000, 1000, 100), None);
+        assert_eq!(eta_secs(1000, 500, 0), None);
+        assert_eq!(eta_secs(500, 1000, 100), None);
+        assert_eq!(eta_secs(1000, 250, 250), Some(3));
+    }
+
+    #[test]
+    fn state_label_maps_all_variants() {
+        assert_eq!(state_label(&TorrentStatsState::Live, false, true), "error");
+        assert_eq!(
+            state_label(&TorrentStatsState::Initializing, false, false),
+            "checking"
+        );
+        assert_eq!(
+            state_label(&TorrentStatsState::Live, true, false),
+            "seeding"
+        );
+        assert_eq!(
+            state_label(&TorrentStatsState::Live, false, false),
+            "downloading"
+        );
+        assert_eq!(
+            state_label(&TorrentStatsState::Paused, true, false),
+            "done"
+        );
+        assert_eq!(
+            state_label(&TorrentStatsState::Paused, false, false),
+            "paused"
+        );
+        assert_eq!(
+            state_label(&TorrentStatsState::Error, false, false),
+            "error"
+        );
+    }
+
+    #[test]
+    fn mib_to_bps_rejects_invalid_and_converts() {
+        assert_eq!(mib_to_bps(0.0), 0);
+        assert_eq!(mib_to_bps(-1.5), 0);
+        assert_eq!(mib_to_bps(f64::NAN), 0);
+        assert_eq!(mib_to_bps(f64::INFINITY), 0);
+        assert_eq!(mib_to_bps(1.0), 1024 * 1024);
+    }
+
+    #[test]
+    fn short_hash_truncates_safely() {
+        assert_eq!(short_hash("abcdef123456"), "torrent-abcdef12");
+        assert_eq!(short_hash("abc"), "torrent-abc");
+    }
+
+    #[test]
+    fn config_deserializes_without_crt_field() {
+        let json = r#"{"downloadDir":"/tmp/dl","maxDownloadBps":null,"maxUploadBps":1024,"theme":"amber"}"#;
+        let cfg: Config = serde_json::from_str(json).unwrap();
+        assert!(cfg.crt);
+        assert_eq!(cfg.theme, "amber");
+        assert_eq!(cfg.max_upload_bps, Some(1024));
+    }
+
+    #[test]
+    fn expand_tilde_leaves_non_tilde_paths_intact() {
+        assert_eq!(expand_tilde("/tmp/a.torrent"), "/tmp/a.torrent");
+        assert_eq!(expand_tilde("relative/path"), "relative/path");
+        let expanded = expand_tilde("~/Downloads");
+        assert!(!expanded.starts_with("~/"));
+    }
 }

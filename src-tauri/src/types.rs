@@ -17,6 +17,13 @@ pub struct Config {
     pub max_upload_bps: Option<u32>,
     /// Terminal colour scheme id used by the UI.
     pub theme: String,
+    /// Whether the CRT scanline overlay is enabled.
+    #[serde(default = "default_crt")]
+    pub crt: bool,
+}
+
+fn default_crt() -> bool {
+    true
 }
 
 /// One file inside a torrent.

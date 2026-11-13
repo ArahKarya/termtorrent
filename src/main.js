@@ -32,7 +32,7 @@ document.documentElement.dataset.os = OS;
 
 const state = {
   snapshot: { torrents: [], session: {} },
-  config: { downloadDir: "", maxDownloadBps: null, maxUploadBps: null, theme: "phosphor" },
+  config: { downloadDir: "", maxDownloadBps: null, maxUploadBps: null, theme: "phosphor", crt: true },
   selectedId: null,
   ready: false,
 };
@@ -77,6 +77,7 @@ async function applyConfig(next) {
   state.config = await api.setConfig(next);
   setDownloadDir(state.config.downloadDir);
   document.documentElement.dataset.theme = state.config.theme;
+  document.documentElement.dataset.crt = state.config.crt ? "on" : "off";
 }
 
 async function refresh() {
@@ -259,6 +260,7 @@ async function boot() {
     state.ready = true;
     setDownloadDir(state.config.downloadDir);
     document.documentElement.dataset.theme = state.config.theme;
+    document.documentElement.dataset.crt = state.config.crt ? "on" : "off";
     setBadge("connected");
     await refresh();
     log("termtorrent ready — paste a magnet link or type /help", "ok");

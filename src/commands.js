@@ -34,6 +34,7 @@ function parseRate(token) {
   if (!m) throw new Error(`bad rate: ${token} (try 2M, 500k, off)`);
   const mult = { k: 1024, m: 1024 ** 2, g: 1024 ** 3 }[m[2]] ?? 1;
   const bps = Math.round(Number(m[1]) * mult);
+  if (bps > 0xffffffff) throw new Error(`rate too large: ${token} (max ~4G)`);
   return bps > 0 ? bps : null;
 }
 
@@ -228,6 +229,7 @@ export const COMMANDS = [
       ctx.log(`down    ${rateLabel(c.maxDownloadBps)}`);
       ctx.log(`up      ${rateLabel(c.maxUploadBps)}`);
       ctx.log(`theme   ${c.theme}`);
+      ctx.log(`crt     ${c.crt ? "on" : "off"}`);
     },
   },
   {
@@ -264,7 +266,7 @@ export const COMMANDS = [
         }
         case "crt": {
           const on = value !== "off";
-          document.documentElement.dataset.crt = on ? "on" : "off";
+          await ctx.applyConfig({ ...ctx.state.config, crt: on });
           return ctx.log(`crt overlay → ${on ? "on" : "off"}`, "ok");
         }
         default:
