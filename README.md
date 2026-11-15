@@ -172,6 +172,16 @@ npm run build    # release bundle (.app + .dmg on macOS)
 npm run icon     # regenerate icons from scripts/make-icon.mjs
 ```
 
+### Headless CLI (Linux / SSH — No GUI)
+
+To build or install only the terminal client (`termtorrent-cli`) without Tauri, GTK, or WebKitGTK:
+
+```bash
+cargo install --path src-tauri --no-default-features --bin termtorrent-cli
+termtorrent-cli          # interactive terminal REPL ($ prompt)
+termtorrent-cli --help   # one-shot commands (add --wait, ls, pause, ...)
+```
+
 Requires **Rust 1.82+** and **Node 18+**. Linux additionally needs
 `libwebkit2gtk-4.1-dev` and `libxdo-dev`; Windows needs the MSVC build tools;
 Android needs a JDK, the Android SDK, and the NDK with `NDK_HOME` set.

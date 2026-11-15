@@ -1,17 +1,24 @@
 //! termtorrent — a lightweight torrent client with a terminal-styled UI.
 
+#[cfg(feature = "gui")]
 mod commands;
-mod engine;
-mod types;
+pub mod engine;
+pub mod types;
 
+#[cfg(feature = "gui")]
 use std::sync::Arc;
+#[cfg(feature = "gui")]
 use std::time::Duration;
 
+#[cfg(feature = "gui")]
 use tauri::{Emitter, Manager};
 
+#[cfg(feature = "gui")]
 use crate::commands::EngineState;
+#[cfg(feature = "gui")]
 use crate::engine::{Engine, TICK_EVENT, TICK_MS};
 
+#[cfg(feature = "gui")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -87,6 +94,7 @@ pub fn run() {
 /// self-contained profile: run a second instance for testing or demos without
 /// touching the torrents in your everyday session. The port range already
 /// spans 4240-4259, so the instances do not fight over a listener.
+#[cfg(feature = "gui")]
 fn config_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
     if let Some(dir) = std::env::var_os("TERMTORRENT_CONFIG_DIR") {
         return std::path::PathBuf::from(dir);
@@ -101,6 +109,7 @@ fn config_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
 /// Android has no user-visible Downloads folder an app may write to without
 /// runtime permissions, so torrents go to app-private storage there. Desktop
 /// platforms use the real Downloads folder.
+#[cfg(feature = "gui")]
 fn default_download_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
     #[cfg(target_os = "android")]
     {
@@ -121,6 +130,7 @@ fn default_download_dir(app: &tauri::AppHandle) -> std::path::PathBuf {
 }
 
 /// Push a fresh snapshot to the frontend on a fixed cadence.
+#[cfg(feature = "gui")]
 async fn tick_loop(handle: tauri::AppHandle, engine: Arc<Engine>) {
     let mut interval = tokio::time::interval(Duration::from_millis(TICK_MS));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -134,7 +144,7 @@ async fn tick_loop(handle: tauri::AppHandle, engine: Arc<Engine>) {
 /// Work around a macOS 27.x WebKit/AppKit crash where `WKTextTouchBarItemController`
 /// throws `NSInvalidArgumentException` or dereferences null inside `itemForIdentifier:`
 /// when an `<input>` receives focus.
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "gui", target_os = "macos"))]
 unsafe fn disable_webkit_text_touch_bar() {
     use std::ffi::{c_char, c_void};
 
