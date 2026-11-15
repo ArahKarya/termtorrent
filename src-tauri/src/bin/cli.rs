@@ -26,7 +26,13 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "termtorrent=warn,librqbit=warn".into()),
+                // librqbit logs a WARN for every duplicate chunk request from a peer
+                // ("we already requested ChunkInfo ..."). It is harmless (the duplicate
+                // is dropped and every piece is hash-verified) but floods the REPL, so
+                // only real errors from that module are shown by default.
+                .unwrap_or_else(|_| {
+                    "termtorrent=warn,librqbit=warn,librqbit::torrent_state::live=error".into()
+                }),
         )
         .init();
 
